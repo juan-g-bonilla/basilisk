@@ -435,7 +435,7 @@ void approximate(InputDataSet Input, int Num, int Q, int P, OutputDataSet *Outpu
         for (int n = 0; n < N+1; n++) {
             T[n] = T[n] / T[N] * S / Input.AvgXDot;
         }
-    }
+    }s
 
     double Ttot = T[N];
 
