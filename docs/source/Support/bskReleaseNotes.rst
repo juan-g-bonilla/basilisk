@@ -32,6 +32,10 @@ Basilisk Release Notes
 
 Version |release|
 -----------------
+- text here
+
+Version 2.1.7 (March 9, 2023)
+-----------------------------
 - Fixed ``CMake/conan`` case sensitivty issue when compiling Basilisk with ``opNav`` flag set to ``True`` on Linux platforms
 - Created fsw :ref:`hingedRigidBodyPIDMotor` to compute the commanded torque to :ref:`spinningBodyOneDOFStateEffector` using a proportional-integral-derivative controller.
 - Added :ref:`torqueScheduler` to combine two :ref:`ArrayMotorTorqueMsgPayload` into one and implement effector locking logic.

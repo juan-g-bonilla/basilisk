@@ -12,6 +12,9 @@ Version |release|
 -----------------
 - text here
 
+Version 2.1.7
+-------------
+- The way to include effector bodies in Vizard has changed in this release.
 
 Version 2.1.6
 -------------
