@@ -47,6 +47,22 @@ Similarly to C++ modules, creating an instance of the Python module is done with
     pyMRPPD.P = 30.0
     scSim.AddModelToTask(simTaskName, pyMRPPD)
 
+Previously, Python modules had to be created differently, they had to
+live in a seprate Python process, and could only run after C/C++ modules.
+This way to create Python is since **deprecated**, but it is collected
+here for reference::
+
+    pyModulesProcess = scSim.CreateNewPythonProcess(pyProcessName, 9)
+    pyModulesProcess.createPythonTask(pyTaskName, simulationTimeStep, True, -1)
+    pyMRPPD = DeprecatedPythonMRPPD("pyMRP_PD", True, 100)
+    pyMRPPD.K = 3.5
+    pyMRPPD.P = 30.0
+    pyModulesProcess.addModelToTask(pyTaskName, pyMRPPD)
+
+The first argument is the module tag string, the second is a bool argument specifying if the module is active
+or note, and the last is the priority value for this module.  The next step is to configure the module
+variables as you do with any other Basilisk module.  Finally, the module is added to the special task
+list specifically for executing python modules.
 
 Illustration of Simulation Results
 ----------------------------------
@@ -193,6 +209,18 @@ def run(show_plots):
     pyMRPPD.K = 3.5
     pyMRPPD.P = 30.0
     scSim.AddModelToTask(simTaskName, pyMRPPD)
+
+    # DEPRECATED setup of Python module
+    #
+    # pyTaskName = "pyTask"
+    # pyProcessName = "pyProcess"
+    # pyModulesProcess = scSim.CreateNewPythonProcess(pyProcessName, 9)
+    # pyModulesProcess.createPythonTask(pyTaskName, simulationTimeStep, True, -1)
+    # pyMRPPD = DeprecatedPythonMRPPD("pyMRP_PD", True, 100)
+    # pyMRPPD.K = 3.5
+    # pyMRPPD.P = 30.0
+    # pyModulesProcess.addModelToTask(pyTaskName, pyMRPPD)
+    #
 
     #
     #   Setup data logging before the simulation is initialized
@@ -363,6 +391,84 @@ class PythonMRPPD(sysModel.SysModel):
 
         return
 
+from Basilisk.utilities import simulationArchTypes
+class DeprecatedPythonMRPPD(simulationArchTypes.PythonModelClass):
+    """
+    This class inherits from the `PythonModelClass` available in the ``simulationArchTypes`` module.
+    The `PythonModelClass` is the parent class which your Python BSK modules must inherit.
+    The class uses the following
+    virtual functions:
+
+    #. ``reset``: The method that will initialize any persistent data in your model to a common
+       "ready to run" state (e.g. filter states, integral control sums, etc).
+    #. ``updateState``: The method that will be called at the rate specified
+       in the PythonTask that was created in the input file.
+
+    Additionally, your class should ensure that in the ``__init__`` method, your call the super
+    ``__init__`` method for the class so that the base class' constructor also gets called to
+    initialize the model-name, activity, moduleID, and other important class members:
+
+    .. code-block:: python
+
+        super(PythonMRPPD, self).__init__(modelName, modelActive, modelPriority)
+
+    You class must implement the above four functions. Beyond these four functions you class
+    can complete any other computations you need (``Numpy``, ``matplotlib``, vision processing
+    AI, whatever).
+    """
+    def __init__(self, modelName, modelActive=True, modelPriority=-1):
+        super(PythonMRPPD, self).__init__(modelName, modelActive, modelPriority)
+
+        # Proportional gain term used in control
+        self.K = 0
+        # Derivative gain term used in control
+        self.P = 0
+        # Input guidance structure message
+        self.guidInMsg = messaging.AttGuidMsgReader()
+        # Output body torque message name
+        self.cmdTorqueOutMsg = messaging.CmdTorqueBodyMsg()
+
+    def reset(self, currentTime):
+        """
+        The reset method is used to clear out any persistent variables that need to get changed
+        when a task is restarted.  This method is typically only called once after selfInit/crossInit,
+        but it should be written to allow the user to call it multiple times if necessary.
+        :param currentTime: current simulation time in nano-seconds
+        :return: none
+        """
+        return
+
+    def updateState(self, currentTime):
+        """
+        The updateState method is the cyclical worker method for a given Basilisk class.  It
+        will get called periodically at the rate specified in the Python task that the model is
+        attached to.  It persists and anything can be done inside of it.  If you have realtime
+        requirements though, be careful about how much processing you put into a Python updateState
+        method.  You could easily detonate your sim's ability to run in realtime.
+
+        :param currentTime: current simulation time in nano-seconds
+        :return: none
+        """
+        # read input message
+        guidMsgBuffer = self.guidInMsg()
+
+        # create output message buffer
+        torqueOutMsgBuffer = messaging.CmdTorqueBodyMsgPayload()
+
+        # compute control solution
+        lrCmd = np.array(guidMsgBuffer.sigma_BR) * self.K + np.array(guidMsgBuffer.omega_BR_B) * self.P
+        torqueOutMsgBuffer.torqueRequestBody = (-lrCmd).tolist()
+
+        self.cmdTorqueOutMsg.write(torqueOutMsgBuffer, currentTime, self.moduleID)
+
+        def print_output():
+            """Sample Python module method"""
+            print(currentTime * 1.0E-9)
+            print(torqueOutMsgBuffer.torqueRequestBody)
+            print(guidMsgBuffer.sigma_BR)
+            print(guidMsgBuffer.omega_BR_B)
+
+        return
 
 #
 # This statement below ensures that the unit test scrip can be run as a
